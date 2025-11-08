@@ -1,12 +1,143 @@
 <!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Rekap Fee</title>
-  </head>
-  <body class="bg-slate-50">
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
-  </body>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Input Borongan</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+  </style>
+</head>
+<body class="min-h-screen bg-slate-50 p-4">
+  <div id="app" class="max-w-md mx-auto"></div>
+
+  <script>
+    const PRICES = {
+      reguler: { "Barcode": 20, "Dobel Barcode": 60, "Repack": 80, "Barcode Repack": 100, "Dobel Repack": 140 },
+      "300j": { "Barcode": 15, "Dobel Barcode": 45, "Repack": 0, "Barcode Repack": 75, "Dobel Repack": 105 }
+    };
+    const CATEGORIES = ["Barcode", "Dobel Barcode", "Repack", "Barcode Repack", "Dobel Repack"];
+
+    const app = document.getElementById("app");
+    const today = new Date().toISOString().slice(0, 10);
+    let entries = JSON.parse(localStorage.getItem("borongan_entries_v1") || "[]");
+
+    function save() {
+      localStorage.setItem("borongan_entries_v1", JSON.stringify(entries));
+      render();
+    }
+
+    function formatRupiah(n) {
+      return "Rp" + n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+    }
+
+    function render() {
+      const date = document.getElementById("tanggal")?.value || today;
+      const name = document.getElementById("nama")?.value || "";
+      const type = document.querySelector('input[name="tipe"]:checked')?.value || "reguler";
+      const cat = document.querySelector(".cat.active")?.dataset.cat || CATEGORIES[0];
+      const qty = parseInt(document.getElementById("qty")?.value || 1);
+      const unit = PRICES[type][cat];
+      const total = unit * qty;
+      const filtered = entries.filter(e => e.date === date);
+      const totalAll = filtered.reduce((a,b)=>a+b.total,0);
+
+      app.innerHTML = `
+        <div class="mb-4">
+          <h1 class="text-xl font-semibold text-slate-800">Input Borongan</h1>
+          <p class="text-sm text-slate-500">Tampilan HP — sederhana & cepat</p>
+        </div>
+
+        <div class="bg-white rounded-2xl shadow p-4 mb-4">
+          <div class="mb-3 flex items-center gap-2">
+            <label class="text-sm text-slate-600 w-20">Tanggal</label>
+            <input id="tanggal" type="date" value="${date}" class="flex-1 p-2 rounded-lg border text-sm" />
+          </div>
+
+          <div class="mb-3 flex items-center gap-2">
+            <label class="text-sm text-slate-600 w-20">Nama</label>
+            <input id="nama" placeholder="(opsional)" value="${name}" class="flex-1 p-2 rounded-lg border text-sm" />
+          </div>
+
+          <div class="mb-3">
+            <div class="text-sm text-slate-600 mb-2">Tipe</div>
+            <div class="flex gap-2">
+              <label class="flex-1">
+                <input type="radio" name="tipe" value="reguler" ${type==="reguler"?"checked":""} /> Reguler
+              </label>
+              <label class="flex-1">
+                <input type="radio" name="tipe" value="300j" ${type==="300j"?"checked":""} /> 300j
+              </label>
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <div class="text-sm text-slate-600 mb-2">Kategori</div>
+            <div class="flex gap-2 overflow-x-auto pb-1">
+              ${CATEGORIES.map(c=>`
+                <button data-cat="${c}" class="cat whitespace-nowrap px-3 py-2 rounded-lg border text-sm ${cat===c?"bg-blue-100 text-blue-800 border-blue-200":"bg-white text-slate-700"}">${c}<br><span class='text-[11px] text-slate-500'>${formatRupiah(PRICES[type][c])}</span></button>
+              `).join("")}
+            </div>
+          </div>
+
+          <div class="mb-3 flex items-center gap-2">
+            <label class="text-sm text-slate-600 w-20">Qty</label>
+            <input id="qty" type="number" min="1" value="${qty}" class="flex-1 p-2 rounded-lg border text-sm" />
+          </div>
+
+          <div class="mb-3 bg-slate-50 p-2 rounded-lg flex justify-between">
+            <div class="text-sm">
+              <div class="font-medium">${cat} — ${type}</div>
+              <div class="text-xs text-slate-500">${qty} × ${formatRupiah(unit)}</div>
+            </div>
+            <div class="text-sm font-semibold">${formatRupiah(total)}</div>
+          </div>
+
+          <div class="flex gap-2">
+            <button id="tambah" class="flex-1 bg-blue-500 text-white p-3 rounded-lg font-semibold shadow">Tambah ke Rekapan</button>
+          </div>
+        </div>
+
+        <div class="bg-white rounded-2xl shadow p-3">
+          <div class="flex items-center justify-between mb-3">
+            <div><div class="text-sm text-slate-600">Rekapan (${filtered.length})</div><div class="text-xs text-slate-400">${date}</div></div>
+            <div><div class="text-xs text-slate-500 text-right">Total</div><div class="text-sm font-semibold">${formatRupiah(totalAll)}</div></div>
+          </div>
+          <div class="space-y-2 max-h-64 overflow-auto">
+            ${filtered.length===0?`<div class='text-center text-slate-400 text-sm py-6'>Belum ada data</div>`:
+              filtered.map(e=>`
+                <div class="flex justify-between border rounded-lg p-2">
+                  <div><div class="text-sm font-medium">${e.category} · ${e.name||"(tanpa nama)"}</div><div class="text-xs text-slate-500">${e.qty} × ${formatRupiah(e.unit)}</div></div>
+                  <div class="text-right">
+                    <div class="text-sm font-semibold">${formatRupiah(e.total)}</div>
+                    <button class="text-xs text-red-600 hapus" data-id="${e.id}">Hapus</button>
+                  </div>
+                </div>`).join("")}
+          </div>
+        </div>
+
+        <footer class="text-center text-xs text-slate-400 mt-4">Data tersimpan di perangkat ini</footer>
+      `;
+
+      document.querySelectorAll(".cat").forEach(b=>b.onclick=()=>{document.querySelectorAll(".cat").forEach(x=>x.classList.remove("active"));b.classList.add("active");render();});
+      document.querySelectorAll('input[name="tipe"]').forEach(x=>x.onchange=render);
+      document.getElementById("tanggal").onchange=render;
+      document.getElementById("nama").oninput=render;
+      document.getElementById("qty").oninput=render;
+
+      const tambah = document.getElementById("tambah");
+      if(tambah) tambah.onclick = ()=>{
+        entries.unshift({id:Date.now(),date,name,type,category:cat,qty,unit,total});
+        save();
+      };
+      document.querySelectorAll(".hapus").forEach(btn=>btn.onclick=()=>{
+        entries = entries.filter(e=>e.id!=btn.dataset.id);
+        save();
+      });
+    }
+
+    render();
+  </script>
+</body>
 </html>
