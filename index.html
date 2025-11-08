@@ -1,143 +1,279 @@
-<!DOCTYPE html>
-<html lang="id">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Input Borongan</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <style>
-    body { font-family: 'Inter', sans-serif; }
-  </style>
-</head>
-<body class="min-h-screen bg-slate-50 p-4">
-  <div id="app" class="max-w-md mx-auto"></div>
+import React, { useEffect, useState } from "react";
 
-  <script>
-    const PRICES = {
-      reguler: { "Barcode": 20, "Dobel Barcode": 60, "Repack": 80, "Barcode Repack": 100, "Dobel Repack": 140 },
-      "300j": { "Barcode": 15, "Dobel Barcode": 45, "Repack": 0, "Barcode Repack": 75, "Dobel Repack": 105 }
+// Borongan Web App (Mobile-first)
+// - Tailwind CSS for styling
+// - Saves data to localStorage (per day)
+// - Mobile-optimized UI with big buttons and easy input
+// - Features: Reguler / 300j toggle, 5 category buttons, qty input, add -> goes to recap table, delete entry
+
+const PRICES = {
+  reguler: {
+    Barcode: 20,
+    "Dobel Barcode": 60,
+    Repack: 80,
+    "Barcode Repack": 100,
+    "Dobel Repack": 140,
+  },
+  "300j": {
+    Barcode: 15,
+    "Dobel Barcode": 45,
+    Repack: 0,
+    "Barcode Repack": 75,
+    "Dobel Repack": 105,
+  },
+};
+
+const CATEGORIES = [
+  "Barcode",
+  "Dobel Barcode",
+  "Repack",
+  "Barcode Repack",
+  "Dobel Repack",
+];
+
+function formatRupiah(n) {
+  return `Rp${n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".")}`;
+}
+
+export default function BoronganApp() {
+  const todayISO = new Date().toISOString().slice(0, 10);
+  const [date, setDate] = useState(todayISO);
+  const [name, setName] = useState("");
+  const [type, setType] = useState("reguler"); // 'reguler' or '300j'
+  const [category, setCategory] = useState(CATEGORIES[0]);
+  const [qty, setQty] = useState(1);
+  const [entries, setEntries] = useState([]);
+
+  // localStorage key
+  const STORAGE_KEY = "borongan_entries_v1";
+
+  useEffect(() => {
+    // load
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) setEntries(JSON.parse(raw));
+    } catch (e) {
+      console.error("Failed to load entries", e);
+    }
+  }, []);
+
+  useEffect(() => {
+    // save
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+    } catch (e) {
+      console.error("Failed to save entries", e);
+    }
+  }, [entries]);
+
+  function resetForm() {
+    setCategory(CATEGORIES[0]);
+    setQty(1);
+    setType("reguler");
+  }
+
+  function addEntry() {
+    const q = Number(qty) || 0;
+    if (q <= 0) return alert("Masukkan qty minimal 1");
+    const unit = PRICES[type][category] ?? 0;
+    const total = unit * q;
+    const newEntry = {
+      id: Date.now() + Math.random().toString(36).slice(2, 7),
+      date,
+      name: name.trim(),
+      type,
+      category,
+      qty: q,
+      unit,
+      total,
     };
-    const CATEGORIES = ["Barcode", "Dobel Barcode", "Repack", "Barcode Repack", "Dobel Repack"];
+    setEntries((s) => [newEntry, ...s]);
+    resetForm();
+  }
 
-    const app = document.getElementById("app");
-    const today = new Date().toISOString().slice(0, 10);
-    let entries = JSON.parse(localStorage.getItem("borongan_entries_v1") || "[]");
+  function deleteEntry(id) {
+    if (!confirm("Hapus data ini?")) return;
+    setEntries((s) => s.filter((e) => e.id !== id));
+  }
 
-    function save() {
-      localStorage.setItem("borongan_entries_v1", JSON.stringify(entries));
-      render();
-    }
+  function entriesForDate() {
+    return entries.filter((e) => e.date === date);
+  }
 
-    function formatRupiah(n) {
-      return "Rp" + n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
-    }
+  const todayEntries = entriesForDate();
+  const totalAll = todayEntries.reduce((a, b) => a + b.total, 0);
 
-    function render() {
-      const date = document.getElementById("tanggal")?.value || today;
-      const name = document.getElementById("nama")?.value || "";
-      const type = document.querySelector('input[name="tipe"]:checked')?.value || "reguler";
-      const cat = document.querySelector(".cat.active")?.dataset.cat || CATEGORIES[0];
-      const qty = parseInt(document.getElementById("qty")?.value || 1);
-      const unit = PRICES[type][cat];
-      const total = unit * qty;
-      const filtered = entries.filter(e => e.date === date);
-      const totalAll = filtered.reduce((a,b)=>a+b.total,0);
+  return (
+    <div className="min-h-screen bg-slate-50 p-4 font-sans">
+      <div className="max-w-md mx-auto">
+        <header className="mb-4">
+          <h1 className="text-xl font-semibold text-slate-800">Input Borongan</h1>
+          <p className="text-sm text-slate-500">Tampilan HP — sederhana & cepat</p>
+        </header>
 
-      app.innerHTML = `
-        <div class="mb-4">
-          <h1 class="text-xl font-semibold text-slate-800">Input Borongan</h1>
-          <p class="text-sm text-slate-500">Tampilan HP — sederhana & cepat</p>
-        </div>
-
-        <div class="bg-white rounded-2xl shadow p-4 mb-4">
-          <div class="mb-3 flex items-center gap-2">
-            <label class="text-sm text-slate-600 w-20">Tanggal</label>
-            <input id="tanggal" type="date" value="${date}" class="flex-1 p-2 rounded-lg border text-sm" />
+        <div className="bg-white rounded-2xl shadow p-4 mb-4">
+          <div className="mb-3 flex items-center gap-2">
+            <label className="text-sm text-slate-600 w-20">Tanggal</label>
+            <input
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              className="flex-1 p-2 rounded-lg border text-sm"
+            />
           </div>
 
-          <div class="mb-3 flex items-center gap-2">
-            <label class="text-sm text-slate-600 w-20">Nama</label>
-            <input id="nama" placeholder="(opsional)" value="${name}" class="flex-1 p-2 rounded-lg border text-sm" />
+          <div className="mb-3 flex items-center gap-2">
+            <label className="text-sm text-slate-600 w-20">Nama</label>
+            <input
+              placeholder="(opsional) ketik nama"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="flex-1 p-2 rounded-lg border text-sm"
+            />
           </div>
 
-          <div class="mb-3">
-            <div class="text-sm text-slate-600 mb-2">Tipe</div>
-            <div class="flex gap-2">
-              <label class="flex-1">
-                <input type="radio" name="tipe" value="reguler" ${type==="reguler"?"checked":""} /> Reguler
-              </label>
-              <label class="flex-1">
-                <input type="radio" name="tipe" value="300j" ${type==="300j"?"checked":""} /> 300j
-              </label>
+          <div className="mb-3">
+            <div className="text-sm text-slate-600 mb-2">Tipe</div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setType("reguler")}
+                className={`flex-1 p-2 rounded-lg text-sm font-medium border transition ${
+                  type === "reguler"
+                    ? "bg-blue-500 text-white border-blue-500"
+                    : "bg-white text-slate-700"
+                }`}
+              >
+                Reguler
+              </button>
+              <button
+                onClick={() => setType("300j")}
+                className={`flex-1 p-2 rounded-lg text-sm font-medium border transition ${
+                  type === "300j" ? "bg-blue-500 text-white border-blue-500" : "bg-white text-slate-700"
+                }`}
+              >
+                300j
+              </button>
             </div>
           </div>
 
-          <div class="mb-3">
-            <div class="text-sm text-slate-600 mb-2">Kategori</div>
-            <div class="flex gap-2 overflow-x-auto pb-1">
-              ${CATEGORIES.map(c=>`
-                <button data-cat="${c}" class="cat whitespace-nowrap px-3 py-2 rounded-lg border text-sm ${cat===c?"bg-blue-100 text-blue-800 border-blue-200":"bg-white text-slate-700"}">${c}<br><span class='text-[11px] text-slate-500'>${formatRupiah(PRICES[type][c])}</span></button>
-              `).join("")}
+          <div className="mb-3">
+            <div className="text-sm text-slate-600 mb-2">Kategori</div>
+            <div className="flex gap-2 overflow-x-auto pb-1">
+              {CATEGORIES.map((cat) => (
+                <button
+                  key={cat}
+                  onClick={() => setCategory(cat)}
+                  className={`whitespace-nowrap px-3 py-2 rounded-lg border text-sm font-medium ${
+                    category === cat ? "bg-blue-100 text-blue-800 border-blue-200" : "bg-white text-slate-700"
+                  }`}
+                >
+                  <div className="text-xs">{cat}</div>
+                  <div className="text-[11px] text-slate-500">{formatRupiah(PRICES[type][cat] ?? 0)}</div>
+                </button>
+              ))}
             </div>
           </div>
 
-          <div class="mb-3 flex items-center gap-2">
-            <label class="text-sm text-slate-600 w-20">Qty</label>
-            <input id="qty" type="number" min="1" value="${qty}" class="flex-1 p-2 rounded-lg border text-sm" />
+          <div className="mb-3 flex items-center gap-2">
+            <label className="text-sm text-slate-600 w-20">Qty</label>
+            <input
+              type="number"
+              min="1"
+              value={qty}
+              onChange={(e) => setQty(e.target.value)}
+              className="flex-1 p-2 rounded-lg border text-sm"
+            />
           </div>
 
-          <div class="mb-3 bg-slate-50 p-2 rounded-lg flex justify-between">
-            <div class="text-sm">
-              <div class="font-medium">${cat} — ${type}</div>
-              <div class="text-xs text-slate-500">${qty} × ${formatRupiah(unit)}</div>
+          <div className="mb-3">
+            <div className="text-sm text-slate-600 mb-1">Preview</div>
+            <div className="flex items-center justify-between bg-slate-50 p-2 rounded-lg">
+              <div className="text-sm">
+                <div className="font-medium">{category} — {type === 'reguler' ? 'Reguler' : '300j'}</div>
+                <div className="text-xs text-slate-500">{qty} × {formatRupiah(PRICES[type][category] ?? 0)}</div>
+              </div>
+              <div className="text-sm font-semibold">{formatRupiah((PRICES[type][category] ?? 0) * Number(qty || 0))}</div>
             </div>
-            <div class="text-sm font-semibold">${formatRupiah(total)}</div>
           </div>
 
-          <div class="flex gap-2">
-            <button id="tambah" class="flex-1 bg-blue-500 text-white p-3 rounded-lg font-semibold shadow">Tambah ke Rekapan</button>
-          </div>
-        </div>
-
-        <div class="bg-white rounded-2xl shadow p-3">
-          <div class="flex items-center justify-between mb-3">
-            <div><div class="text-sm text-slate-600">Rekapan (${filtered.length})</div><div class="text-xs text-slate-400">${date}</div></div>
-            <div><div class="text-xs text-slate-500 text-right">Total</div><div class="text-sm font-semibold">${formatRupiah(totalAll)}</div></div>
-          </div>
-          <div class="space-y-2 max-h-64 overflow-auto">
-            ${filtered.length===0?`<div class='text-center text-slate-400 text-sm py-6'>Belum ada data</div>`:
-              filtered.map(e=>`
-                <div class="flex justify-between border rounded-lg p-2">
-                  <div><div class="text-sm font-medium">${e.category} · ${e.name||"(tanpa nama)"}</div><div class="text-xs text-slate-500">${e.qty} × ${formatRupiah(e.unit)}</div></div>
-                  <div class="text-right">
-                    <div class="text-sm font-semibold">${formatRupiah(e.total)}</div>
-                    <button class="text-xs text-red-600 hapus" data-id="${e.id}">Hapus</button>
-                  </div>
-                </div>`).join("")}
+          <div className="flex gap-2">
+            <button
+              onClick={addEntry}
+              className="flex-1 bg-blue-500 text-white p-3 rounded-lg font-semibold shadow"
+            >
+              Tambah ke Rekapan
+            </button>
+            <button
+              onClick={() => { resetForm(); }}
+              className="px-3 py-3 rounded-lg border bg-white"
+            >
+              Batal
+            </button>
           </div>
         </div>
 
-        <footer class="text-center text-xs text-slate-400 mt-4">Data tersimpan di perangkat ini</footer>
-      `;
+        <div className="bg-white rounded-2xl shadow p-3">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <div className="text-sm text-slate-600">Rekapan ({todayEntries.length})</div>
+              <div className="text-xs text-slate-400">Tanggal: {date}</div>
+            </div>
+            <div className="text-right">
+              <div className="text-xs text-slate-500">Total</div>
+              <div className="text-sm font-semibold">{formatRupiah(totalAll)}</div>
+            </div>
+          </div>
 
-      document.querySelectorAll(".cat").forEach(b=>b.onclick=()=>{document.querySelectorAll(".cat").forEach(x=>x.classList.remove("active"));b.classList.add("active");render();});
-      document.querySelectorAll('input[name="tipe"]').forEach(x=>x.onchange=render);
-      document.getElementById("tanggal").onchange=render;
-      document.getElementById("nama").oninput=render;
-      document.getElementById("qty").oninput=render;
+          <div className="space-y-2 max-h-64 overflow-auto">
+            {todayEntries.length === 0 && (
+              <div className="text-center text-slate-400 text-sm py-6">Belum ada data untuk tanggal ini.</div>
+            )}
 
-      const tambah = document.getElementById("tambah");
-      if(tambah) tambah.onclick = ()=>{
-        entries.unshift({id:Date.now(),date,name,type,category:cat,qty,unit,total});
-        save();
-      };
-      document.querySelectorAll(".hapus").forEach(btn=>btn.onclick=()=>{
-        entries = entries.filter(e=>e.id!=btn.dataset.id);
-        save();
-      });
-    }
+            {todayEntries.map((e) => (
+              <div key={e.id} className="flex items-center justify-between p-2 rounded-lg border">
+                <div>
+                  <div className="text-sm font-medium">{e.category} · {e.name || "(tanpa nama)"}</div>
+                  <div className="text-xs text-slate-500">{e.qty} × {formatRupiah(e.unit)}</div>
+                </div>
+                <div className="text-right">
+                  <div className="text-sm font-semibold">{formatRupiah(e.total)}</div>
+                  <button onClick={() => deleteEntry(e.id)} className="mt-1 text-xs text-red-600">Hapus</button>
+                </div>
+              </div>
+            ))}
+          </div>
 
-    render();
-  </script>
-</body>
-</html>
+          <div className="mt-3 flex gap-2">
+            <button
+              onClick={() => {
+                if (!confirm('Reset semua data untuk tanggal ini?')) return;
+                setEntries((s) => s.filter((it) => it.date !== date));
+              }}
+              className="flex-1 py-2 rounded-lg border text-sm text-red-600"
+            >Reset Hari Ini</button>
+
+            <button
+              onClick={() => {
+                // download CSV simple
+                const rows = [["date","name","type","category","qty","unit","total"],
+                  ...todayEntries.map((r) => [r.date, r.name, r.type, r.category, r.qty, r.unit, r.total])
+                ];
+                const csv = rows.map(r => r.map(c => `\"${String(c).replace(/\"/g,'""')}\"`).join(',')).join('\n');
+                const blob = new Blob([csv], {type: 'text/csv'});
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `rekap_${date}.csv`;
+                a.click();
+                URL.revokeObjectURL(url);
+              }}
+              className="py-2 px-3 rounded-lg bg-blue-500 text-white text-sm"
+            >Download CSV</button>
+          </div>
+        </div>
+
+        <footer className="text-center text-xs text-slate-400 mt-4">Data tersimpan di perangkat ini (localStorage). Untuk gabungkan data semua karyawan, gunakan versi online nanti.</footer>
+      </div>
+    </div>
+  );
+}
